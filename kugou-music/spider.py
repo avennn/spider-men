@@ -22,7 +22,7 @@ class KuGouMusic(object):
     self.client = MongoClient('mongodb://localhost:27017/')
     self.db = self.client['kugou']
     self.driver = webdriver.PhantomJS()
-    self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36'},
+    self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36'}
     self.pages = {}
     self.page_urls = set()
   def create_path_by_suffix(self, suffix):
@@ -32,7 +32,7 @@ class KuGouMusic(object):
     url = self.ORIGIN_URL + str(page) + '-' + sort + '-' + str(type) + '.html'
     return url
   def get_page_by_url(self, url):
-    r = requests.get(url)
+    r = requests.get(url, headers=self.headers)
     return r.text
   def get_singer_urls_by_page(self, url):
     html = self.get_page_by_url(url)
@@ -178,10 +178,10 @@ kugou = KuGouMusic()
 # kugou.get_singer_urls()
 
 # 获取华语歌手的名称和简介并更新到mongodb
-# kugou.get_singer_desc()
+kugou.get_singer_desc()
 
 # 获取歌手的所有专辑的url并存入mongodb
-kugou.get_album_urls()
+# kugou.get_album_urls()
 
 # 通过专辑获取歌曲名称
-kugou.get_songs()
+# kugou.get_songs()
