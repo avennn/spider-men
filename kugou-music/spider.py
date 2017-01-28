@@ -1,9 +1,10 @@
 #! python3
 # -*- coding: utf-8 -*-
 
-import requests
 import re
 import time
+import random
+import requests
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
 from selenium import webdriver
@@ -22,7 +23,18 @@ class KuGouMusic(object):
     self.client = MongoClient('mongodb://localhost:27017/')
     self.db = self.client['kugou']
     self.driver = webdriver.PhantomJS()
-    self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36'},
+    self.user_agents = [
+      'Mozilla/5.0 (Windows NT 10.0; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/55.0.2883.87 Safari/537.36',
+      'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.6; rv,2.0.1) Gecko/20100101 Firefox/4.0.1',
+      'Mozilla/5.0 (Windows NT 6.1; rv,2.0.1) Gecko/20100101 Firefox/4.0.1',
+      'Opera/9.80 (Macintosh; Intel Mac OS X 10.6.8; U; en) Presto/2.8.131 Version/11.11',
+      'Opera/9.80 (Windows NT 6.1; U; en) Presto/2.8.131 Version/11.11',
+      'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; Maxthon 2.0)',
+      'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; TencentTraveler 4.0)',
+      'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; The World)',
+      'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; Trident/4.0; SE 2.X MetaSr 1.0; SE 2.X MetaSr 1.0; .NET CLR 2.0.50727; SE 2.X MetaSr 1.0)',
+      'Mozilla/4.0 (compatible; MSIE 7.0; Windows NT 5.1; 360SE)'
+    ]
     self.pages = {}
     self.page_urls = set()
   def create_path_by_suffix(self, suffix):
@@ -32,27 +44,27 @@ class KuGouMusic(object):
     url = self.ORIGIN_URL + str(page) + '-' + sort + '-' + str(type) + '.html'
     return url
   def get_page_by_url(self, url):
-    r = requests.get(url)
+    headers = {'User-Agent': random.choice(self.user_agents)}
+    r = requests.get(url, headers=headers)
     return r.text
   def get_singer_urls_by_page(self, url):
-    html = self.get_page_by_url(url)
-    bs_obj = BeautifulSoup(html, 'html.parser')
     try:
+      html = self.get_page_by_url(url)
+      bs_obj = BeautifulSoup(html, 'html.parser')
       has_img_elements = bs_obj.find('ul', id='list_head').find_all('strong')
       for ele in has_img_elements:
       # 带有歌手图片的link
         singer_link = ele.find('a')['href']
         print(singer_link)
         self.db.singer_urls.insert_one({'text': singer_link})
-    except AttributeError as e:
-      print(e)
-    try:
       no_img_elements = bs_obj.find('div', id='list1').find_all('a')
       for a in no_img_elements:
         # 不带歌手图片的link
         singer_link = a['href']
         print(singer_link)
         self.db.singer_urls.insert_one({'text': singer_link})
+    except ConnectionError as e:
+      print(e)
     except AttributeError as e:
       print(e)
   def get_pages_num(self):
@@ -79,19 +91,24 @@ class KuGouMusic(object):
     singer_urls = self.db.singer_urls.find()
     print(singer_urls.count())
     for url in singer_urls:
-      html = self.get_page_by_url(url['text'])
-      bs_obj = BeautifulSoup(html, 'html.parser')
-      time.sleep(5)
-      try:
-        sng_ins = bs_obj.find('div', class_='sng_ins_1')
-        singer = sng_ins.find('div', class_='top').find('strong').text
-        desc = sng_ins.find('div', id='text').find('div', class_='bordr_cen').text
-        print(singer)
-        self.db.singer_urls.update_one({'_id': url['_id']}, {
-          '$set': {'singer': singer, 'desc': desc}
-        }, upsert=False)
-      except AttributeError as e:
-        print(e)
+      if ('singer' not in url.keys()):
+        html = self.get_page_by_url(url['text'])
+        bs_obj = BeautifulSoup(html, 'html.parser')
+        # db.getCollection('singer_urls').find({'singer': /.+/}).count()
+        # total:11709,now:326
+        # time.sleep(3)
+        try:
+          sng_ins = bs_obj.find('div', class_='sng_ins_1')
+          singer = sng_ins.find('div', class_='top').find('strong').text
+          desc = sng_ins.find('div', id='text').find('div', class_='bordr_cen').text
+          print(singer)
+          self.db.singer_urls.update_one({'_id': url['_id']}, {
+            '$set': {'singer': singer, 'desc': desc}
+          }, upsert=False)
+        except ConnectionError as e:
+          print(e)
+        except AttributeError as e:
+          print(e)
   def get_album_urls(self):
     singer_urls = self.db.singer_urls.find()
     for url in singer_urls:
@@ -99,7 +116,7 @@ class KuGouMusic(object):
       try:
         album_ele = self.driver.find_element_by_xpath("//ul[@class='tab clear_fix']/li[2]")
         album_ele.click()
-        time.sleep(5)
+        time.sleep(random.randint(5, 10))
         expect = WebDriverWait(self.driver, 10).until(
           EC.text_to_be_present_in_element((By.XPATH, "//ul[@class='tab clear_fix']/li[2]"), '专辑')
         )
@@ -121,6 +138,8 @@ class KuGouMusic(object):
               'name': album_name,
               'date': album_date
             })
+      except ConnectionError as e:
+        print(e)
       except AttributeError as e:
         print(e)
     self.driver.close()
@@ -131,7 +150,7 @@ class KuGouMusic(object):
       try:
         html = self.get_page_by_url(url)
         bs_obj = BeautifulSoup(html, 'html.parser')
-        time.sleep(5)
+        time.sleep(random.randint(5, 10))
         l_box = bs_obj.find('div', class_='l')
         # 更新albums表
         raw_album_desc = l_box.find('p', class_="intro").text
@@ -166,6 +185,8 @@ class KuGouMusic(object):
             'date': date,
             'name': song_name
           })
+      except ConnectionError as e:
+        print(e)
       except AttributeError as e:
         print(e)
 
@@ -178,10 +199,10 @@ kugou = KuGouMusic()
 # kugou.get_singer_urls()
 
 # 获取华语歌手的名称和简介并更新到mongodb
-# kugou.get_singer_desc()
+kugou.get_singer_desc()
 
 # 获取歌手的所有专辑的url并存入mongodb
-kugou.get_album_urls()
+# kugou.get_album_urls()
 
 # 通过专辑获取歌曲名称
-kugou.get_songs()
+# kugou.get_songs()
