@@ -92,11 +92,11 @@ class KuGouMusic(object):
     print(singer_urls.count())
     for url in singer_urls:
       if ('singer' not in url.keys()):
+        time.sleep(random.randint(60, 90))
         html = self.get_page_by_url(url['text'])
         bs_obj = BeautifulSoup(html, 'html.parser')
         # db.getCollection('singer_urls').find({'singer': /.+/}).count()
-        # total:11709,now:326
-        # time.sleep(3)
+        # total:11709,now:731
         try:
           sng_ins = bs_obj.find('div', class_='sng_ins_1')
           singer = sng_ins.find('div', class_='top').find('strong').text
