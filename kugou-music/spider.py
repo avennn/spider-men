@@ -1,16 +1,14 @@
 #! python3
 # -*- coding: utf-8 -*-
 
-import re
-import time
-import random
-import requests
+import re, time, random, requests
 from bs4 import BeautifulSoup
 from pymongo import MongoClient
 from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+
 
 class KuGouMusic(object):
   def __init__(self):
@@ -45,7 +43,7 @@ class KuGouMusic(object):
     return url
   def get_page_by_url(self, url):
     headers = {'User-Agent': random.choice(self.user_agents)}
-    r = requests.get(url, headers=headers)
+    r = requests.get(url, headers=headers, cookies=None)
     return r.text
   def get_singer_urls_by_page(self, url):
     try:
@@ -92,11 +90,12 @@ class KuGouMusic(object):
     print(singer_urls.count())
     for url in singer_urls:
       if ('singer' not in url.keys()):
+        time.sleep(random.randint(60, 90))
         html = self.get_page_by_url(url['text'])
         bs_obj = BeautifulSoup(html, 'html.parser')
+        # 60-90s,ok
         # db.getCollection('singer_urls').find({'singer': /.+/}).count()
-        # total:11709,now:326
-        # time.sleep(3)
+        # total:11709,now:
         try:
           sng_ins = bs_obj.find('div', class_='sng_ins_1')
           singer = sng_ins.find('div', class_='top').find('strong').text
