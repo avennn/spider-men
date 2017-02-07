@@ -95,7 +95,7 @@ class KuGouMusic(object):
         bs_obj = BeautifulSoup(html, 'html.parser')
         # 60-90s,ok
         # db.getCollection('singer_urls').find({'singer': /.+/}).count()
-        # total:11709,now:
+        # total:11709,now:2295
         try:
           sng_ins = bs_obj.find('div', class_='sng_ins_1')
           singer = sng_ins.find('div', class_='top').find('strong').text
