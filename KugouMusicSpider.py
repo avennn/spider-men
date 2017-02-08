@@ -8,6 +8,7 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from tools import mail
 
 
 class KuGouMusic(object):
@@ -35,6 +36,11 @@ class KuGouMusic(object):
     ]
     self.pages = {}
     self.page_urls = set()
+  def send_mail(self, subject, message):
+    # 每次上传记得修改
+    mailObj = mail.Mail('xxx@163.com', 'xxx',
+                        'xxx@qq.com', subject, message)
+    mailObj.send_mail()
   def create_path_by_suffix(self, suffix):
     url = self.ORIGIN_URL + suffix + '.html'
     return url
@@ -63,8 +69,10 @@ class KuGouMusic(object):
         self.db.singer_urls.insert_one({'text': singer_link})
     except ConnectionError as e:
       print(e)
+      self.send_mail('爬取歌手url异常', repr(e))
     except AttributeError as e:
       print(e)
+      self.send_mail('爬取歌手url异常', repr(e))
   def get_pages_num(self):
     for type in self.CN_TYPES:
       for s in self.SORTS:
@@ -90,12 +98,12 @@ class KuGouMusic(object):
     print(singer_urls.count())
     for url in singer_urls:
       if ('singer' not in url.keys()):
-        time.sleep(random.randint(60, 90))
+        time.sleep(random.randint(40, 60))
         html = self.get_page_by_url(url['text'])
         bs_obj = BeautifulSoup(html, 'html.parser')
-        # 60-90s,ok
+        # 40-60s,ok
         # db.getCollection('singer_urls').find({'singer': /.+/}).count()
-        # total:11709,now:2295
+        # total:11709,now:2306
         try:
           sng_ins = bs_obj.find('div', class_='sng_ins_1')
           singer = sng_ins.find('div', class_='top').find('strong').text
@@ -106,16 +114,19 @@ class KuGouMusic(object):
           }, upsert=False)
         except ConnectionError as e:
           print(e)
+          self.send_mail('爬取歌手描述异常', repr(e))
         except AttributeError as e:
           print(e)
+          self.send_mail('爬取歌手描述异常', repr(e))
   def get_album_urls(self):
     singer_urls = self.db.singer_urls.find()
     for url in singer_urls:
+      time.sleep(random.randint(40, 60))
       self.driver.get(url['text'])
       try:
         album_ele = self.driver.find_element_by_xpath("//ul[@class='tab clear_fix']/li[2]")
         album_ele.click()
-        time.sleep(random.randint(5, 10))
+        time.sleep(10)
         expect = WebDriverWait(self.driver, 10).until(
           EC.text_to_be_present_in_element((By.XPATH, "//ul[@class='tab clear_fix']/li[2]"), '专辑')
         )
@@ -139,17 +150,19 @@ class KuGouMusic(object):
             })
       except ConnectionError as e:
         print(e)
+        self.send_mail('爬取专辑url异常', repr(e))
       except AttributeError as e:
         print(e)
+        self.send_mail('爬取专辑url异常', repr(e))
     self.driver.close()
   def get_songs(self):
     albums = self.db.albums.find()
     for album in albums:
       url = album['url']
       try:
+        time.sleep(random.randint(40, 60))
         html = self.get_page_by_url(url)
         bs_obj = BeautifulSoup(html, 'html.parser')
-        time.sleep(random.randint(5, 10))
         l_box = bs_obj.find('div', class_='l')
         # 更新albums表
         raw_album_desc = l_box.find('p', class_="intro").text
@@ -186,22 +199,24 @@ class KuGouMusic(object):
           })
       except ConnectionError as e:
         print(e)
+        self.send_mail('爬取歌曲异常', repr(e))
       except AttributeError as e:
         print(e)
+        self.send_mail('爬取歌曲异常', repr(e))
 
+if __name__ == "__main__":
+  kugou = KuGouMusic()
 
-kugou = KuGouMusic()
+  # 获取所有华语歌手的首页url并存入mongodb
+  kugou.get_pages_num()
+  kugou.get_page_url_set()
+  kugou.get_singer_urls()
 
-# 获取所有华语歌手的首页url并存入mongodb
-# kugou.get_pages_num()
-# kugou.get_page_url_set()
-# kugou.get_singer_urls()
+  # 获取华语歌手的名称和简介并更新到mongodb
+  kugou.get_singer_desc()
 
-# 获取华语歌手的名称和简介并更新到mongodb
-kugou.get_singer_desc()
+  # 获取歌手的所有专辑的url并存入mongodb
+  kugou.get_album_urls()
 
-# 获取歌手的所有专辑的url并存入mongodb
-# kugou.get_album_urls()
-
-# 通过专辑获取歌曲名称
-# kugou.get_songs()
+  # 通过专辑获取歌曲名称
+  kugou.get_songs()
