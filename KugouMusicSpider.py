@@ -36,10 +36,11 @@ class KuGouMusic(object):
     ]
     self.pages = {}
     self.page_urls = set()
+    self.attr_email_sent = False
   def send_mail(self, subject, message):
     # 每次上传记得修改
-    mailObj = mail.Mail('xxx@163.com', 'xxx',
-                        'xxx@qq.com', subject, message)
+    mailObj = mail.Mail('liangjianwen001@163.com', 'ljw9725466312813',
+                        '914301050@qq.com', subject, message)
     mailObj.send_mail()
   def create_path_by_suffix(self, suffix):
     url = self.ORIGIN_URL + suffix + '.html'
@@ -72,7 +73,9 @@ class KuGouMusic(object):
       self.send_mail('爬取歌手url异常', repr(e))
     except AttributeError as e:
       print(e)
-      self.send_mail('爬取歌手url异常', repr(e))
+      if not self.attr_email_sent:
+        self.send_mail('爬取歌手url异常', repr(e))
+        self.attr_email_sent = True
   def get_pages_num(self):
     for type in self.CN_TYPES:
       for s in self.SORTS:
@@ -98,12 +101,12 @@ class KuGouMusic(object):
     print(singer_urls.count())
     for url in singer_urls:
       if ('singer' not in url.keys()):
-        time.sleep(random.randint(40, 60))
+        time.sleep(random.randint(20, 40))
         html = self.get_page_by_url(url['text'])
         bs_obj = BeautifulSoup(html, 'html.parser')
-        # 40-60s,ok
+        # 20-40s,ok
         # db.getCollection('singer_urls').find({'singer': /.+/}).count()
-        # total:11709,now:2306
+        # total:11709,now:7065
         try:
           sng_ins = bs_obj.find('div', class_='sng_ins_1')
           singer = sng_ins.find('div', class_='top').find('strong').text
@@ -117,100 +120,113 @@ class KuGouMusic(object):
           self.send_mail('爬取歌手描述异常', repr(e))
         except AttributeError as e:
           print(e)
-          self.send_mail('爬取歌手描述异常', repr(e))
+          if not self.attr_email_sent:
+            self.send_mail('爬取歌手描述异常', repr(e))
+            self.attr_email_sent = True
   def get_album_urls(self):
     singer_urls = self.db.singer_urls.find()
     for url in singer_urls:
-      time.sleep(random.randint(40, 60))
-      self.driver.get(url['text'])
-      try:
-        album_ele = self.driver.find_element_by_xpath("//ul[@class='tab clear_fix']/li[2]")
-        album_ele.click()
-        time.sleep(10)
-        expect = WebDriverWait(self.driver, 10).until(
-          EC.text_to_be_present_in_element((By.XPATH, "//ul[@class='tab clear_fix']/li[2]"), '专辑')
-        )
-        if expect:
-          html = self.driver.page_source
-          bs_obj = BeautifulSoup(html, 'html.parser')
-          singer = bs_obj.find('div', class_='intro').find('strong').text
-          albums = bs_obj.find('ul', id='album_container').find_all('li')
-          print('歌手', singer)
-          for album in albums:
-            album_url = album.find('a', class_='pic')['href']
-            album_name = album.find('p').find('a').text
-            album_date = album.find('span').text
-            print('专辑', album_name)
-            print('专辑url', album_url)
-            self.db.albums.insert_one({
-              'singer': singer,
-              'url': album_url,
-              'name': album_name,
-              'date': album_date
-            })
-      except ConnectionError as e:
-        print(e)
-        self.send_mail('爬取专辑url异常', repr(e))
-      except AttributeError as e:
-        print(e)
-        self.send_mail('爬取专辑url异常', repr(e))
+      temp_url = self.db.temp_urls.find_one({'text': url})
+      if not temp_url:
+        time.sleep(random.randint(20, 40))
+        self.driver.get(url['text'])
+        try:
+          album_ele = self.driver.find_element_by_xpath("//ul[@class='tab clear_fix']/li[2]")
+          album_ele.click()
+          time.sleep(5)
+          expect = WebDriverWait(self.driver, 10).until(
+            EC.text_to_be_present_in_element((By.XPATH, "//ul[@class='tab clear_fix']/li[2]"), '专辑')
+          )
+          if expect:
+            html = self.driver.page_source
+            bs_obj = BeautifulSoup(html, 'html.parser')
+            singer = bs_obj.find('div', class_='intro').find('strong').text
+            albums = bs_obj.find('ul', id='album_container').find_all('li')
+            print(singer)
+            for album in albums:
+              album_url = album.find('a', class_='pic')['href']
+              album_name = album.find('p').find('a').text
+              album_date = album.find('span').text
+              print('专辑', album_name)
+              print('专辑url', album_url)
+              self.db.albums.insert_one({
+                'singer': singer,
+                'url': album_url,
+                'name': album_name,
+                'date': album_date
+              })
+            self.db.temp_urls.insert_one({'text': url['text']})
+        except ConnectionError as e:
+          print(e)
+          self.send_mail('爬取专辑url异常', repr(e))
+        except AttributeError as e:
+          print(e)
+          if not self.attr_email_sent:
+            self.send_mail('爬取专辑url异常', repr(e))
+            self.attr_email_sent = True
     self.driver.close()
   def get_songs(self):
     albums = self.db.albums.find()
     for album in albums:
       url = album['url']
-      try:
-        time.sleep(random.randint(40, 60))
-        html = self.get_page_by_url(url)
-        bs_obj = BeautifulSoup(html, 'html.parser')
-        l_box = bs_obj.find('div', class_='l')
-        # 更新albums表
-        raw_album_desc = l_box.find('p', class_="intro").text
-        album_desc = raw_album_desc.strip().lstrip('简介：')
-        self.db.albums.update_one({'_id': album['_id']}, {
-          '$set': {'desc': album_desc}
-        })
-        # 插值songs表
-        detail = l_box.find('p', class_='detail')
-        contents = detail.contents
-        for i, content in enumerate(contents):
-          if (content == '\n') == True:
-            contents.pop(i)
-        # 专辑
-        album = contents[1]
-        # 歌手
-        singer = contents[4]
-        # 发片公司
-        company = contents[7]
-        # 发行日期
-        date = contents[10].strip('\r\n')
-        print(album, singer, company, date)
-        song_list = bs_obj.find('div', id='songs').find('ul').find_all('li')
-        for song in song_list:
-          title = song.find('a')['title']
-          # 歌曲名称
-          song_name = title.split('-')[1].strip()
-          self.db.songs.insert_one({
-            'singer': singer,
-            'album': album,
-            'company': company,
-            'date': date,
-            'name': song_name
+      bak_url = self.db.bak_urls.find_one({'text': url})
+      if not bak_url:
+        try:
+          time.sleep(random.randint(20, 40))
+          print('专辑url', url)
+          html = self.get_page_by_url(url)
+          bs_obj = BeautifulSoup(html, 'html.parser')
+          l_box = bs_obj.find('div', class_='l')
+          # 更新albums表
+          raw_album_desc = l_box.find(class_="intro").text
+          album_desc = raw_album_desc.strip().lstrip('简介：')
+          self.db.albums.update_one({'_id': album['_id']}, {
+            '$set': {'desc': album_desc}
           })
-      except ConnectionError as e:
-        print(e)
-        self.send_mail('爬取歌曲异常', repr(e))
-      except AttributeError as e:
-        print(e)
-        self.send_mail('爬取歌曲异常', repr(e))
+          # 插值songs表
+          detail = l_box.find('p', class_='detail')
+          contents = detail.contents
+          for i, content in enumerate(contents):
+            if (content == '\n') == True:
+              contents.pop(i)
+          # 专辑
+          album = contents[1]
+          # 歌手
+          singer = contents[4]
+          # 发片公司
+          company = contents[7]
+          # 发行日期
+          date = contents[10].strip('\r\n')
+          print(album, singer, company, date)
+          song_list = bs_obj.find('div', id='songs').find('ul').find_all('li')
+          for song in song_list:
+            title = song.find('a')['title']
+            # 歌曲名称
+            song_name = title.split('-')[1].strip()
+            self.db.songs.insert_one({
+              'singer': singer,
+              'album': album,
+              'company': company,
+              'date': date,
+              'name': song_name
+            })
+          self.db.bak_urls.insert_one({'text': url})
+        except ConnectionError as e:
+          print(e)
+          self.send_mail('爬取歌曲异常', repr(e))
+        except AttributeError as e:
+          print(e)
+          if not self.attr_email_sent:
+            self.send_mail('爬取歌曲异常', repr(e))
+            self.attr_email_sent = True
 
 if __name__ == "__main__":
   kugou = KuGouMusic()
 
   # 获取所有华语歌手的首页url并存入mongodb
-  kugou.get_pages_num()
-  kugou.get_page_url_set()
-  kugou.get_singer_urls()
+  # kugou.get_pages_num()
+  # kugou.get_page_url_set()
+  # kugou.get_singer_urls()
 
   # 获取华语歌手的名称和简介并更新到mongodb
   kugou.get_singer_desc()
