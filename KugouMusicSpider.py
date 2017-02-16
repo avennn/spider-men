@@ -39,8 +39,8 @@ class KuGouMusic(object):
     self.attr_email_sent = False
   def send_mail(self, subject, message):
     # 每次上传记得修改
-    mailObj = mail.Mail('liangjianwen001@163.com', 'ljw9725466312813',
-                        '914301050@qq.com', subject, message)
+    mailObj = mail.Mail('xxx@163.com', 'xxx',
+                        'xxx@qq.com', subject, message)
     mailObj.send_mail()
   def create_path_by_suffix(self, suffix):
     url = self.ORIGIN_URL + suffix + '.html'
@@ -124,9 +124,12 @@ class KuGouMusic(object):
             self.send_mail('爬取歌手描述异常', repr(e))
             self.attr_email_sent = True
   def get_album_urls(self):
-    singer_urls = self.db.singer_urls.find()
+    # cursor长时间没操作会关闭
+    # no_cursor_timeout=True或batch_size
+    singer_urls = self.db.singer_urls.find().batch_size(5)
     for url in singer_urls:
-      temp_url = self.db.temp_urls.find_one({'text': url})
+      # db.getCollection('albums').distinct('singer').length
+      temp_url = self.db.temp_urls.find_one({'text': url['text']})
       if not temp_url:
         time.sleep(random.randint(20, 40))
         self.driver.get(url['text'])
@@ -166,7 +169,7 @@ class KuGouMusic(object):
             self.attr_email_sent = True
     self.driver.close()
   def get_songs(self):
-    albums = self.db.albums.find()
+    albums = self.db.albums.find().batch_size(5)
     for album in albums:
       url = album['url']
       bak_url = self.db.bak_urls.find_one({'text': url})
@@ -229,7 +232,7 @@ if __name__ == "__main__":
   # kugou.get_singer_urls()
 
   # 获取华语歌手的名称和简介并更新到mongodb
-  kugou.get_singer_desc()
+  # kugou.get_singer_desc()
 
   # 获取歌手的所有专辑的url并存入mongodb
   kugou.get_album_urls()
