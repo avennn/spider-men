@@ -21,7 +21,7 @@ pip install pymongo
 If your system has installed py2 and py3 at the same time, please use `py -3 -m pip install` instead of `pip install` all the above. 
 * phantomjs
 
-In Windows system, download (phantomjs)[http://phantomjs.org/download.html] zip file, and unzip it, copy **phantomjs.exe** into the root path of py3.
+In Windows system, download [phantomjs](http://phantomjs.org/download.html) zip file, and unzip it, copy **phantomjs.exe** into the root path of py3.
 
 # Usage
 ### KugouMusicSpider.py
