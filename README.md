@@ -20,7 +20,9 @@ pip install pymongo
 ```
 If your system has installed py2 and py3 at the same time, please use `py -3 -m pip install` instead of `pip install` all the above. 
 * phantomjs
+
 In Windows system, download (phantomjs)[http://phantomjs.org/download.html] zip file, and unzip it, copy **phantomjs.exe** into the root path of py3.
+
 # Usage
 ### KugouMusicSpider.py
 First, make sure you have started local mongo server and have an empty database named **kugou**. Second, remember to modify your email information in method `send_mail`. Third, switch the annotation state in main method according to the craw phase.
