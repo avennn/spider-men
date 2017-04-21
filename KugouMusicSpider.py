@@ -167,6 +167,9 @@ class KuGouMusic(object):
           if not self.attr_email_sent:
             self.send_mail('爬取专辑url异常', repr(e))
             self.attr_email_sent = True
+        except Exception as e:
+          print(url['text'])
+          self.db.temp_urls.insert_one({'text': url['text']})
     self.driver.close()
   def get_songs(self):
     albums = self.db.albums.find().batch_size(5)
@@ -176,6 +179,7 @@ class KuGouMusic(object):
       if not bak_url:
         try:
           time.sleep(random.randint(20, 40))
+          print('==========================')
           print('专辑url', url)
           html = self.get_page_by_url(url)
           bs_obj = BeautifulSoup(html, 'html.parser')
@@ -213,6 +217,7 @@ class KuGouMusic(object):
               'date': date,
               'name': song_name
             })
+            print(song_name)
           self.db.bak_urls.insert_one({'text': url})
         except ConnectionError as e:
           print(e)
@@ -222,6 +227,9 @@ class KuGouMusic(object):
           if not self.attr_email_sent:
             self.send_mail('爬取歌曲异常', repr(e))
             self.attr_email_sent = True
+        except Exception as e:
+          print(e)
+          self.db.bak_urls.insert_one({'text': url})
 
 if __name__ == "__main__":
   kugou = KuGouMusic()
@@ -235,7 +243,7 @@ if __name__ == "__main__":
   # kugou.get_singer_desc()
 
   # 获取歌手的所有专辑的url并存入mongodb
-  kugou.get_album_urls()
+  # kugou.get_album_urls()
 
   # 通过专辑获取歌曲名称
   kugou.get_songs()
